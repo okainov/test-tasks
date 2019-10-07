@@ -1,0 +1,6 @@
+# to simplify datetime parsing
+python-dateutil
+# to simplify work with timezones
+pytz
+# to simplify work with currencies
+currencyconverter
