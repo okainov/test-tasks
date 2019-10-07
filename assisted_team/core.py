@@ -58,7 +58,7 @@ class Flight:
     def get_duration(self) -> datetime.timedelta:
         return self.get_arrival_time() - self.get_departure_time()
 
-    def validate(self):
+    def validate(self) -> bool:
         return all([x is not None for x in [self.source, self.destination,
                                             self.arrival_time, self.departure_time]])
 
@@ -69,7 +69,7 @@ class Flight:
     def __str__(self):
         return self.__repr__()
 
-    def serialize(self):
+    def serialize(self) -> dict:
         return {
             'source': self.source,
             'destination': self.destination,
@@ -96,10 +96,10 @@ class Travel:
         self.price_currency = None
         self.total_prices = {}
 
-    def set_currency(self, currency):
+    def set_currency(self, currency: str):
         self.price_currency = currency
 
-    def get_currency(self):
+    def get_currency(self) -> str:
         return self.price_currency
 
     def set_total_price(self, fare_type: str, total_price: float):
@@ -159,15 +159,16 @@ class Travel:
         :return: index how "good" the flight is. Less is better
         """
         SECONDS_IN_HOUR = 60 * 60
+        HOURS_IN_DAY = 60 * 60
         duration = self.get_total_duration()
 
-        total_hours = duration.days * 24 + duration.seconds // SECONDS_IN_HOUR
+        total_hours = duration.days * HOURS_IN_DAY + duration.seconds // SECONDS_IN_HOUR
         # Normalize prices to one currency so several different flights can be compared
         total_price = self.calculate_price(currency=Travel.DEFAULT_CURRENCY)
 
         return total_hours * total_price
 
-    def serialize(self):
+    def serialize(self) -> dict:
         return {
             'price_currency': self.price_currency,
             'price_information': [{'type': fare_type, 'price': price} for fare_type, price in
@@ -181,52 +182,47 @@ class TravelParser:
         self.filename = filename
 
     def parse_travels(self) -> Generator[Travel, None, None]:
-        path = []
         current_flight = Flight()
         current_travel = Travel()
         # TODO: validation of malformed/unrecognized format XMLs
-        for event, data in ET.iterparse(self.filename, events=('start', 'end')):
-            if event == 'start':
-                path.append(data.tag)
-                continue
-
+        # use "iterparse" to be able to parse XMLs which are bigger than memory. Same reason for using generators
+        for event, data in ET.iterparse(self.filename):
             if data.tag == 'Source':
                 current_flight.set_source(data.text)
-            if data.tag == 'Destination':
+            elif data.tag == 'Destination':
                 current_flight.set_destination(data.text)
 
-            if data.tag == 'Carrier':
+            elif data.tag == 'Carrier':
                 current_flight.set_carrier(data.text)
                 current_flight.set_carrier_id(data.attrib['id'])
-            if data.tag == 'FlightNumber':
+            elif data.tag == 'FlightNumber':
                 current_flight.set_flight_number(data.text)
 
             # TODO: check for DST based on the actual datetime
             # TODO: we're relying on the order of XML fields here, i.e. "Source" and "Destination" have to go before
             #  datetime data, or Pricing data should come after Flights data
-            if data.tag == 'DepartureTimeStamp':
+            elif data.tag == 'DepartureTimeStamp':
                 local_departure_time = dateutil.parser.parse(data.text)
                 current_flight.set_departure_time(
                     pytz.timezone(iata_timezone.get_iata_timezone(current_flight.get_source())).localize(
                         local_departure_time))
-            if data.tag == 'ArrivalTimeStamp':
+            elif data.tag == 'ArrivalTimeStamp':
                 local_arrival_time = dateutil.parser.parse(data.text)
                 current_flight.set_arrival_time(pytz.timezone(
                     iata_timezone.get_iata_timezone(current_flight.get_destination())).localize(local_arrival_time))
 
-            if data.tag == 'Flight':
+            elif data.tag == 'Flight':
                 # Make sure flight is fully created at this point
                 # TODO: implement proper validation
                 assert current_flight.validate()
                 current_travel.add_flight(current_flight)
                 current_flight = Flight()
 
-            if data.tag == 'ServiceCharges':
+            elif data.tag == 'ServiceCharges':
                 # TODO: Get use of other ChargeTypes?
                 if data.attrib['ChargeType'] == 'TotalAmount':
                     current_travel.set_total_price(data.attrib['type'], float(data.text))
-            if data.tag == 'Pricing':
+            elif data.tag == 'Pricing':
                 current_travel.set_currency(data.attrib['currency'])
                 yield current_travel
                 current_travel = Travel()
-            path.pop()
