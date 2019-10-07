@@ -12,8 +12,8 @@ CORS(app)
 @app.route('/api/flights')
 def flights():
     # TODO: actually use the parameters :)
-    source = request.args.get("source", "DXB")
-    destination = request.args.get("destination", "BKK")
+    source = request.args.get('source', 'DXB')
+    destination = request.args.get('destination', 'BKK')
 
     parser = TravelParser()
     result = []
@@ -25,8 +25,8 @@ def flights():
 @app.route('/api/top')
 def top_flights():
     # TODO: add currency_output parameter
-    criteria = request.args.get("criteria", "price")
-    sort = request.args.get("sort", "asc")
+    criteria = request.args.get('criteria', 'price')
+    sort = request.args.get('sort', 'asc')
 
     if criteria == 'price':
         # TODO: add amount of persons as API parameter
@@ -56,5 +56,5 @@ def top_flights():
     return jsonify({'travels': best_travels, 'value': best_value})
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(port=8080)
