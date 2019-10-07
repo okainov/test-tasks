@@ -1,3 +1,14 @@
+## Deployment
+
+Make sure Docker and Docker-compose are installed
+
+Execute:
+
+    docker-compose up -d
+
+If everything works, then you'll be able to access main API endpoint at http://localhost:8080/api/ and Swagger UI at http://localhost:8081/
+
+
 ## Тестовое задание в команду ассистеда (Python/Go)
 
 В папке два XML – это ответы на поисковые запросы, сделанные к одному из наших партнёров.
