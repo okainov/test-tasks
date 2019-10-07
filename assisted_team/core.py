@@ -1,6 +1,6 @@
 import datetime
 import xml.etree.ElementTree as ET
-from typing import List
+from typing import List, Generator
 
 import dateutil.parser
 import pytz
@@ -68,6 +68,16 @@ class Flight:
 
     def __str__(self):
         return self.__repr__()
+
+    def serialize(self):
+        return {
+            'source': self.source,
+            'destination': self.destination,
+            'departure_time': self.departure_time.isoformat(),
+            'arrival_time': self.arrival_time.isoformat(),
+            'carrier': self.carrier,
+            'flight_number': self.flight_number,
+        }
 
 
 class Travel:
@@ -157,72 +167,66 @@ class Travel:
 
         return total_hours * total_price
 
+    def serialize(self):
+        return {
+            'price_currency': self.price_currency,
+            'price_information': [{'type': fare_type, 'price': price} for fare_type, price in
+                                  self.total_prices.items()],
+            'flights': [f.serialize() for f in self.flights],
+        }
 
-root = ET.parse('RS_ViaOW.xml').getroot()
 
-# Use iterparse because size of XML can be bigger than memory
+class TravelParser:
+    def __init__(self, filename: str = 'RS_ViaOW.xml'):
+        self.filename = filename
 
-path = []
-
-total = -1
-min_index = 1e10
-min_travel = None
-current_flight = Flight()
-current_travel = Travel()
-for event, data in ET.iterparse('RS_ViaOW.xml', events=('start', 'end')):
-    # for event, data in ET.iterparse('RS_Via-3.xml', events=('start', 'end')):
-    if event == 'start':
-        path.append(data.tag)
-        continue
-
-    if data.tag == 'Source':
-        current_flight.set_source(data.text)
-    if data.tag == 'Destination':
-        current_flight.set_destination(data.text)
-
-    if data.tag == 'Carrier':
-        current_flight.set_carrier(data.text)
-        current_flight.set_carrier_id(data.attrib['id'])
-    if data.tag == 'FlightNumber':
-        current_flight.set_flight_number(data.text)
-
-    # TODO: check for DST based on the actual datetime
-    # TODO: we're relying on the order of XML fields here, i.e. "Source" and "Destination" have to go before
-    #  datetime data, or Pricing data should come after Flights data
-    if data.tag == 'DepartureTimeStamp':
-        local_departure_time = dateutil.parser.parse(data.text)
-        current_flight.set_departure_time(
-            pytz.timezone(iata_timezone.get_iata_timezone(current_flight.get_source())).localize(
-                local_departure_time))
-    if data.tag == 'ArrivalTimeStamp':
-        local_arrival_time = dateutil.parser.parse(data.text)
-        current_flight.set_arrival_time(pytz.timezone(
-            iata_timezone.get_iata_timezone(current_flight.get_destination())).localize(local_arrival_time))
-
-    if data.tag == 'Flight':
-        assert current_flight.validate()
-        current_travel.add_flight(current_flight)
+    def parse_travels(self) -> Generator[Travel, None, None]:
+        path = []
         current_flight = Flight()
-
-    if data.tag == 'ServiceCharges':
-        # TODO: Get use of other ChargeTypes?
-        if data.attrib['ChargeType'] == 'TotalAmount':
-            current_travel.set_total_price(data.attrib['type'], float(data.text))
-    if data.tag == 'Pricing':
-        current_travel.set_currency(data.attrib['currency'])
-        print(current_travel)
-        index = current_travel.get_suitability_index()
-        if index < min_index:
-            min_travel = current_travel
-            min_index = index
-        print(index)
         current_travel = Travel()
-        print('---------')
-    # TODO: validation of malformed/unrecognized format XMLs
-    path.pop()
+        # TODO: validation of malformed/unrecognized format XMLs
+        for event, data in ET.iterparse(self.filename, events=('start', 'end')):
+            if event == 'start':
+                path.append(data.tag)
+                continue
 
-print('Min travel is %s' % min_index)
-print(min_travel)
-# print(root)
-# for elem in root.iter():
-#     print(elem)
+            if data.tag == 'Source':
+                current_flight.set_source(data.text)
+            if data.tag == 'Destination':
+                current_flight.set_destination(data.text)
+
+            if data.tag == 'Carrier':
+                current_flight.set_carrier(data.text)
+                current_flight.set_carrier_id(data.attrib['id'])
+            if data.tag == 'FlightNumber':
+                current_flight.set_flight_number(data.text)
+
+            # TODO: check for DST based on the actual datetime
+            # TODO: we're relying on the order of XML fields here, i.e. "Source" and "Destination" have to go before
+            #  datetime data, or Pricing data should come after Flights data
+            if data.tag == 'DepartureTimeStamp':
+                local_departure_time = dateutil.parser.parse(data.text)
+                current_flight.set_departure_time(
+                    pytz.timezone(iata_timezone.get_iata_timezone(current_flight.get_source())).localize(
+                        local_departure_time))
+            if data.tag == 'ArrivalTimeStamp':
+                local_arrival_time = dateutil.parser.parse(data.text)
+                current_flight.set_arrival_time(pytz.timezone(
+                    iata_timezone.get_iata_timezone(current_flight.get_destination())).localize(local_arrival_time))
+
+            if data.tag == 'Flight':
+                # Make sure flight is fully created at this point
+                # TODO: implement proper validation
+                assert current_flight.validate()
+                current_travel.add_flight(current_flight)
+                current_flight = Flight()
+
+            if data.tag == 'ServiceCharges':
+                # TODO: Get use of other ChargeTypes?
+                if data.attrib['ChargeType'] == 'TotalAmount':
+                    current_travel.set_total_price(data.attrib['type'], float(data.text))
+            if data.tag == 'Pricing':
+                current_travel.set_currency(data.attrib['currency'])
+                yield current_travel
+                current_travel = Travel()
+            path.pop()
