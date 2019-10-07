@@ -1,0 +1,63 @@
+openapi: 3.0.0
+info:
+  title: Aviasales Assisted Test Task
+  version: 0.0.1
+servers:
+  - url: http://127.0.0.1:8080/api
+    description: Main API endpoint
+paths:
+  /flights:
+    get:
+      summary: Returns a list of flights
+      description: Optional extended description in CommonMark or HTML.
+      parameters:
+        - name: source
+          in: query
+          description: (not used)3-letters IATA airport code of the departure port
+          schema:
+            type: string
+            default: DXB
+        - name: destination
+          in: query
+          description: (not used)3-letters IATA airport code of the arrival port
+          schema:
+            type: string
+            default: BKK
+      responses:
+        '200':
+          description: List of available travel Itineraries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flights:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source:
+                          type: string
+                        destination:
+                          type: string
+                        departure_time:
+                          type: string
+                          format: datetime
+                        arrival_time:
+                          type: string
+                          format: datetime
+                        carrier:
+                          type: string
+                        flight_number:
+                          type: string
+                  price_currency:
+                      type: string
+                  price_information:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          type:
+                            type: string
+                          price:
+                            type: number
