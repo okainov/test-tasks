@@ -75,6 +75,7 @@ paths:
                       $ref: '#/components/schemas/Travel'
                   value:
                     type: string
+                    description: actual best value of the criteria
 
 
 components:
